@@ -1,38 +1,37 @@
-# Data Safety — Origami Joy (com.paper.folding.origamijoy)
+# Data Safety — Origami Joy (`com.paper.folding.origamijoy`)
 
-Nguồn: manifest + gradle audit + blueprint/aso/compliance_census.md. Developer: BUILD DATA SOLUTIONS SAS. Privacy URL: https://build-data-solutions-sas.github.io/origami-joy/privacy/. Dùng để điền Play Console > Data safety.
+Nguồn bằng chứng: `compliance_census.md` (merged manifest `prodDebug`, `libs.versions.toml`, grep source) + trang Privacy live
+`https://build-data-solutions-sas.github.io/origami-joy/privacy/` (§2.1). Import: Play Console → App content → Data safety → Import CSV `data_safety.csv`.
 
-## Khai báo chung
-- Thu thập hoặc chia sẻ dữ liệu người dùng bắt buộc: **Yes**
-- Mã hoá dữ liệu khi truyền: **Yes** (HTTPS/TLS qua SDK)
-- Cho phép người dùng yêu cầu xoá dữ liệu: **Yes** (dữ liệu local: xoá storage/gỡ app; dữ liệu SDK: liên hệ chandlerpiper499410@gmail.com; không có tài khoản)
-- Tài khoản: **Không có** — không cần Account deletion URL (app không tạo tài khoản)
-- Mua hàng trong app: **Không** (v1 frictionless; BILLING chỉ là hạ tầng thư viện, không có SKU bán)
-- Nhắm trẻ em: **Không** (không phải app Families; target age 13+)
+## Khai báo tổng
+| Câu hỏi | Trả lời | Bằng chứng |
+|---|---|---|
+| Thu thập/chia sẻ dữ liệu bắt buộc? | **Yes** (`COLLECTS_PERSONAL_DATA=true`) | Firebase Analytics/Crashlytics/Config/FCM + module-ads (AdMob + mediation) |
+| Mã hoá khi truyền | **Yes** | mọi SDK dùng TLS; CDN HTTPS |
+| Tạo tài khoản | **None** (`PSL_ACM_NONE`) | `grep signIn\|FirebaseAuth\|GoogleSignIn app/src/main` = 0 |
+| Người dùng yêu cầu xoá dữ liệu | **Yes** + URL = Privacy §9 `…/privacy/` | không có account; dữ liệu app ở máy; SDK → email store |
+| Families / child-directed | Không điền (general audience) | order/census |
 
-## Bảng dữ liệu
-
-| Loại dữ liệu (Play) | Thu thập | Chia sẻ | Bắt buộc/tuỳ chọn | Mục đích | Nguồn |
+## Loại dữ liệu đã khai (cột "Response value" của CSV)
+| Data type (Play) | Collected | Shared | Bắt buộc? | Mục đích | Bằng chứng SDK |
 |---|---|---|---|---|---|
-| Device or other IDs — Advertising ID | Có | Có (AdMob, mediation, attribution) | Bắt buộc (với app có ads) | Advertising or marketing; Analytics; Fraud prevention | AD_ID permission, module-ads, Adjust/Meta/TikTok SDK |
-| App activity — App interactions | Có | Có (Google/Firebase, ad/attribution) | Bắt buộc | Analytics; Advertising or marketing; App functionality | Firebase Analytics (Telemetry.kt), ad SDK |
-| App info and performance — Crash logs | Có | Có (Google/Firebase) | Bắt buộc | Analytics (diagnostics) | Firebase Crashlytics |
-| App info and performance — Diagnostics | Có | Có (Google/Firebase, ad SDK) | Bắt buộc | Analytics; App functionality | Firebase Crashlytics / Performance của ads SDK |
-| Device or other IDs — Firebase installation ID / push token | Có | Có (Google) | Bắt buộc | Analytics; App functionality (push) | Firebase Analytics, FCM |
-| Location — Approximate location | Có (suy ra từ IP bởi SDK; app KHÔNG xin quyền vị trí) | Có (ad SDK) | Bắt buộc | Advertising or marketing; Analytics | Ad SDK / Firebase (IP-derived) |
-| Photos and videos | **Không** thu thập (ảnh chụp camera lưu local, không rời máy; chỉ chia sẻ khi người dùng chủ động share) | Không | — | — | CameraX, filesDir/creations |
-| Personal info (tên, email, số điện thoại, địa chỉ) | **Không** | Không | — | — | Không có login/tài khoản |
-| Financial info / Purchases | **Không** | Không | — | — | Không IAP |
-| Contacts, Messages, Audio, Files, Health, Web browsing | **Không** | Không | — | — | — |
+| Device or other IDs (Advertising ID, Firebase installation ID, FCM token) | ✓ | ✓ (AdMob/mediation/attribution) | Required | Advertising · Analytics · App functionality · Fraud prevention (collect); Advertising · Analytics (share) | `com.google.android.gms.permission.AD_ID`, `ACCESS_ADSERVICES_AD_ID`, module-ads, Firebase Analytics + Messaging (`OrigamiMessagingService.kt`) |
+| App activity → App interactions | ✓ | ✓ (ad SDK đo impression/click) | Required | Analytics · Advertising | Firebase Analytics (`core/Telemetry.kt`), module-ads |
+| Location → Approximate location (suy ra từ IP bởi SDK; app KHÔNG xin quyền vị trí) | ✓ | ✓ | Required | Advertising · Analytics | Privacy §2.1 "IP address and approximate location derived from it"; AdMob/Firebase |
+| App info & performance → Crash logs | ✓ | ✗ (service provider) | Required | Analytics · App functionality | Firebase Crashlytics |
+| App info & performance → Diagnostics | ✓ | ✓ (ad SDK) | Required | Analytics · App functionality (collect); Analytics (share) | Crashlytics / ad SDK performance |
 
-## Ghi chú xử lý data
-- Dữ liệu chỉ ở máy (không phải "collected" theo định nghĩa Play): favourites, progress, completed, wallet(coin), game, creations (ảnh), reminder, settings (DataStore + filesDir).
-- Ảnh camera/gallery: xử lý trên máy (cacheDir/filesDir). Không upload.
-- Nội dung origami tải từ CDN (`bblcdn.b-cdn.net`): app chỉ gửi request GET tiêu chuẩn (IP bị CDN nhìn thấy).
-- UMP consent (Google) chạy trước quảng cáo cho EEA/UK.
-- Phần "chia sẻ" Advertising ID: Play coi chuyển sang service provider xử lý thay mặt (analytics/crash) là không "share", nhưng ads/attribution là "share" — khai là Có để an toàn.
+**Không khai** (grep = 0 / on-device): name, email, user-id/account, phone, address, precise location, contacts, messages, **photos/videos**
+(ảnh thành phẩm chụp/chọn từ gallery chỉ lưu `filesDir/creations` trên máy, không upload — Privacy §2.4), audio, files, health, financial/purchases
+(`com.android.vending.BILLING` chỉ là hạ tầng thư viện ads cho cờ ad-free; không có màn mua — Privacy §3 nói rõ).
+Dữ liệu chỉ ở máy (favourites, progress, coins, settings) = không "collected" theo định nghĩa Play.
 
-## Quyền (manifest) → ghi chú Play
-- AD_ID: khai "Yes" ở mục Advertising ID trong App content.
-- CAMERA, POST_NOTIFICATIONS: runtime, tuỳ chọn.
-- RECEIVE_BOOT_COMPLETED, VIBRATE, BILLING, ACCESS_ADSERVICES_*: hạ tầng.
+## Đối chiếu Data Safety ↔ Privacy Policy ↔ Listing (Play cross-check)
+- Mọi type trong CSV đều có dòng trong Privacy §2.1 (Advertising ID/device IDs; IP+approx location; app interactions; crash logs & diagnostics; Firebase installation ID & push token). ✓
+- Privacy §2.4 + §2.2: ảnh không upload ↔ CSV không khai Photos ✓. Listing nói "photos live in Creations on your device" ✓.
+- Listing nêu "contains ads" + "analytics and crash reports" ✓.
+
+## Lệch so với brief (ghi rõ để người submit quyết)
+Brief đề xuất "KHÔNG location". Privacy policy (do legal sinh) liệt kê **IP-derived approximate location** cho ad SDK/Firebase ⇒ để Data Safety khớp Privacy Policy
+tôi khai **Approximate location (Collected+Shared)**. Nếu đội muốn bỏ dòng này thì phải sửa Privacy §2.1 cùng lúc; khai thiếu so với Privacy = rủi ro cross-check.
+Trước khi Submit, người dùng nên đối chiếu lại với trang Data-safety chính thức của từng SDK phiên bản đang dùng (Adjust 5.7, Meta 18.3, TikTok 1.5 — theo CONTENT_READY).
